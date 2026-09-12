@@ -17,7 +17,7 @@ enum class RecordKind(val collection: String, val displayName: String) {
     REMINDER("reminders", "Recordatorio"),
     INSPECTION("inspections", "ITV / Inspección"),
     INSURANCE("insurance", "Seguro"),
-    MODIFICATION("modifications", "Modificación"),
+    MODIFICATION("modifications", "Mejoras"),
     PART("parts", "Pieza"),
     TYRE("tyres", "Neumático"),
     TAX("taxes", "Impuesto"),
@@ -60,6 +60,7 @@ data class Vehicle(
     val remotePhotoUrl: String? = null,
     val galleryLocalPaths: List<String> = emptyList(),
     val galleryRemoteUrls: List<String> = emptyList(),
+    val videoLocalPaths: List<String> = emptyList(),
     val status: VehicleStatus = VehicleStatus.ACTUAL,
     val archived: Boolean = false,
     val createdAt: Date? = null,
@@ -104,6 +105,7 @@ data class GarageRecord(
     val productModel: String = "",
     val reference: String = "",
     val description: String = "",
+    val dimensions: String = "",
 
     val tyreSize: String = "",
     val dot: String = "",
@@ -158,7 +160,7 @@ data class ExpenseStats(
 )
 
 data class AppPreferences(
-    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val themeMode: ThemeMode = ThemeMode.DARK,
     val distanceUnit: DistanceUnit = DistanceUnit.KM,
     val volumeUnit: VolumeUnit = VolumeUnit.LITERS,
     val consumptionUnit: ConsumptionUnit = ConsumptionUnit.L_PER_100_KM,
