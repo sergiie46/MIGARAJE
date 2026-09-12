@@ -1,0 +1,184 @@
+import java.util.Properties
+
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
+}
+
+def hasGoogleServices = file('google-services.json').exists()
+if (hasGoogleServices) {
+    apply plugin: 'com.google.gms.google-services'
+}
+
+def localProps = new Properties()
+def localPropsFile = rootProject.file('local.properties')
+if (localPropsFile.exists()) {
+    localPropsFile.withInputStream { localProps.load(it) }
+}
+
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file('keystore.properties')
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
+def configValue = { String key, String fallback ->
+    def envValue = System.getenv(key)
+    if (envValue != null && !envValue.trim().isEmpty()) return envValue.trim()
+    return localProps.getProperty(key, fallback)
+}
+
+def quoted = { String value ->
+    '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
+}
+
+configurations.configureEach {
+    resolutionStrategy.force 'org.jetbrains.kotlin:kotlin-stdlib:2.3.21'
+    resolutionStrategy.force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.3.21'
+    resolutionStrategy.force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.3.21'
+}
+
+android {
+    namespace 'com.noxforgestudios.mygarage'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.noxforgestudios.mygarage'
+        minSdk 26
+        targetSdk 36
+        versionCode 2
+        versionName '1.1.0'
+
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        vectorDrawables {
+            useSupportLibrary true
+        }
+
+        buildConfigField 'String', 'ADMOB_BANNER_ID', quoted(configValue('ADMOB_BANNER_ID', 'ca-app-pub-4959997187423595/9627937913'))
+        buildConfigField 'String', 'PRO_PRODUCT_ID', quoted('migaraje_pro')
+        buildConfigField 'boolean', 'FIREBASE_STORAGE_ENABLED', configValue('FIREBASE_STORAGE_ENABLED', 'false')
+        buildConfigField 'String', 'DEVELOPER_CONTACT', quoted(configValue('DEVELOPER_CONTACT', ''))
+        buildConfigField 'boolean', 'FIREBASE_CONFIG_PRESENT', hasGoogleServices.toString()
+
+        manifestPlaceholders = [
+            ADMOB_APP_ID: configValue('ADMOB_APP_ID', 'ca-app-pub-4959997187423595~3743834650')
+        ]
+    }
+
+    signingConfigs {
+        if (!keystoreProps.isEmpty()) {
+            release {
+                storeFile rootProject.file(keystoreProps.getProperty('storeFile'))
+                storePassword keystoreProps.getProperty('storePassword')
+                keyAlias keystoreProps.getProperty('keyAlias')
+                keyPassword keystoreProps.getProperty('keyPassword')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            versionNameSuffix '-debug'
+            minifyEnabled false
+            // Debug SIEMPRE usa IDs oficiales de prueba de Google.
+            buildConfigField 'String', 'ADMOB_BANNER_ID', quoted('ca-app-pub-3940256099942544/9214589741')
+            manifestPlaceholders = [ADMOB_APP_ID: 'ca-app-pub-3940256099942544~3347511713']
+            buildConfigField 'boolean', 'USE_APP_CHECK_DEBUG', 'true'
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            buildConfigField 'boolean', 'USE_APP_CHECK_DEBUG', 'false'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (!keystoreProps.isEmpty()) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    buildFeatures {
+        compose true
+        buildConfig true
+    }
+
+    packaging {
+        resources {
+            excludes += ['/META-INF/{AL2.0,LGPL2.1}', 'META-INF/DEPENDENCIES', 'META-INF/LICENSE*', 'META-INF/NOTICE*']
+        }
+    }
+
+    lint {
+        abortOnError true
+        checkReleaseBuilds true
+        warningsAsErrors false
+    }
+}
+
+dependencies {
+    // Keep Kotlin runtime aligned with the compiler used by this project.
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.3.21'
+    constraints {
+        implementation('org.jetbrains.kotlin:kotlin-stdlib:2.3.21')
+        implementation('org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.3.21')
+        implementation('org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.3.21')
+    }
+
+    def composeBom = platform('androidx.compose:compose-bom:2025.12.00')
+    implementation composeBom
+    androidTestImplementation composeBom
+
+    implementation 'androidx.core:core-ktx:1.17.0'
+    implementation 'androidx.activity:activity-compose:1.11.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.9.4'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.9.4'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4'
+    implementation 'androidx.navigation:navigation-compose:2.9.5'
+    implementation 'androidx.datastore:datastore-preferences:1.1.7'
+    implementation 'androidx.work:work-runtime-ktx:2.10.5'
+
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.foundation:foundation'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.material:material-icons-extended'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+
+    implementation platform('com.google.firebase:firebase-bom:34.4.0')
+    implementation 'com.google.firebase:firebase-auth'
+    implementation 'com.google.firebase:firebase-firestore'
+    implementation 'com.google.firebase:firebase-appcheck-playintegrity'
+    implementation 'com.google.firebase:firebase-appcheck-debug'
+    implementation 'com.google.firebase:firebase-storage'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2'
+
+    implementation 'androidx.credentials:credentials:1.5.0'
+    implementation 'androidx.credentials:credentials-play-services-auth:1.5.0'
+    implementation 'com.google.android.libraries.identity.googleid:googleid:1.1.1'
+
+    implementation 'com.android.billingclient:billing-ktx:8.0.0'
+    implementation 'com.google.android.gms:play-services-ads:24.7.0'
+    implementation 'com.google.android.ump:user-messaging-platform:3.2.0'
+
+    implementation 'io.coil-kt.coil3:coil-compose:3.5.0'
+    implementation 'com.vanniktech:android-image-cropper:4.6.0'
+
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
+    androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+}

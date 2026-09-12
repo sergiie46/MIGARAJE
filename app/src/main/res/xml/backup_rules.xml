@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="file" path="vehicle_photos/" />
+    <exclude domain="database" path="firestore/" />
+</full-backup-content>

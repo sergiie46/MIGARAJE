@@ -1,0 +1,6 @@
+# Android Studio normally writes sdk.dir automatically.
+# sdk.dir=/path/to/Android/Sdk
+ADMOB_APP_ID=ca-app-pub-XXXXXXXXXXXXXXXX~YYYYYYYYYY
+ADMOB_BANNER_ID=ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY
+FIREBASE_STORAGE_ENABLED=false
+DEVELOPER_CONTACT=contacto@tudominio.com

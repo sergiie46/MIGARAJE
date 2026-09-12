@@ -1,0 +1,32 @@
+<resources>
+    <string name="app_name">Mi Garaje</string>
+    <string name="tagline">Todo sobre tus vehículos, en un solo sitio.</string>
+    <string name="continue_google">Continuar con Google</string>
+    <string name="privacy_policy">Política de privacidad</string>
+    <string name="terms">Términos</string>
+    <string name="manage_consent">Gestionar consentimiento</string>
+    <string name="home">Inicio</string>
+    <string name="garage">Garaje</string>
+    <string name="history">Historial</string>
+    <string name="statistics">Estadísticas</string>
+    <string name="settings">Ajustes</string>
+    <string name="search">Buscar</string>
+    <string name="add_vehicle">Añadir vehículo</string>
+    <string name="update_odometer">Actualizar kilómetros</string>
+    <string name="save">Guardar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="delete">Eliminar</string>
+    <string name="edit">Editar</string>
+    <string name="duplicate">Duplicar</string>
+    <string name="archive">Archivar</string>
+    <string name="no_vehicles">No tienes vehículos todavía.</string>
+    <string name="add_first_vehicle">Añadir mi primer vehículo</string>
+    <string name="no_records">Aún no hay registros para este vehículo.</string>
+    <string name="pro_title">Mi Garaje PRO</string>
+    <string name="unlock_pro">Desbloquear PRO</string>
+    <string name="restore_purchase">Restaurar compra</string>
+    <string name="sync_now">Sincronizar ahora</string>
+    <string name="sign_out">Cerrar sesión</string>
+    <string name="delete_account">Eliminar cuenta</string>
+    <string name="privacy_options">Opciones de privacidad</string>
+</resources>
