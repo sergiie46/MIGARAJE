@@ -9,7 +9,7 @@ on:
       build_release:
         description: "Compilar también APK/AAB Release firmado"
         required: false
-        default: false
+        default: true
         type: boolean
 
 permissions:
@@ -171,6 +171,8 @@ jobs:
       - name: Verify outputs
         shell: bash
         run: |
+          "${ANDROID_HOME}/build-tools/${BUILD_TOOLS}/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify app/build/outputs/bundle/release/app-release.aab
           test -f app/build/outputs/apk/release/app-release.apk
           test -f app/build/outputs/bundle/release/app-release.aab
           ls -lh app/build/outputs/apk/release/app-release.apk app/build/outputs/bundle/release/app-release.aab
