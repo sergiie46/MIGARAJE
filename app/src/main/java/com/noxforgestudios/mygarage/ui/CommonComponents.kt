@@ -98,6 +98,8 @@ fun RecordRow(record: GarageRecord, preferences: AppPreferences = AppPreferences
             val parts = mutableListOf(EsDateFormat.format(record.date))
             record.odometerKm?.let { parts += UnitFormatters.formatDistance(it, preferences) }
             if (record.category.isNotBlank()) parts += record.category
+            if (record.dimensions.isNotBlank()) parts += record.dimensions
+            if (record.status.isNotBlank()) parts += record.status
             Text(parts.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis)
         },
         trailingContent = { if (record.cost > 0) Text(UnitFormatters.money(record.cost, preferences.currencyCode), fontWeight = FontWeight.SemiBold) }
