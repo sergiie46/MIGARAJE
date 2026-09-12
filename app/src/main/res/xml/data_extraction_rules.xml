@@ -2,9 +2,12 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="file" path="vehicle_photos/" />
-        <exclude domain="database" path="firestore/" />
+        <!-- No respaldar cachés/bases locales (incluida la caché offline de Firestore). -->
+        <exclude domain="database" path="." />
     </cloud-backup>
+
     <device-transfer>
-        <exclude domain="database" path="firestore/" />
+        <!-- Evita transferir cachés/bases locales obsoletas entre dispositivos. -->
+        <exclude domain="database" path="." />
     </device-transfer>
 </data-extraction-rules>

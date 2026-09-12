@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
+    <!-- Las fotos locales pueden regenerarse/sincronizarse; no se incluyen en el backup. -->
     <exclude domain="file" path="vehicle_photos/" />
-    <exclude domain="database" path="firestore/" />
+
+    <!-- Firestore mantiene su propia caché local. En el dominio database Android Lint
+         no permite rutas de subdirectorios como "firestore/", por eso excluimos
+         el dominio de bases de datos completo mediante la raíz ".". -->
+    <exclude domain="database" path="." />
 </full-backup-content>
