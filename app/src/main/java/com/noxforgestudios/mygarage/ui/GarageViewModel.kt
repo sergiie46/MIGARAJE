@@ -1,6 +1,9 @@
 package com.noxforgestudios.mygarage.ui
 
 import android.app.Activity
+import android.net.Uri
+import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -25,6 +28,7 @@ data class GarageUiState(
     val online: Boolean = true,
     val pro: ProState = ProState(),
     val loading: Boolean = false,
+    val savingVehicle: Boolean = false,
     val message: String? = null,
     val firebaseConfigured: Boolean = true
 )
@@ -91,13 +95,16 @@ class GarageViewModel(private val container: AppContainer) : ViewModel() {
         val chosen = s.vehicles.firstOrNull { it.id == preferred && !it.archived }
             ?: s.vehicles.firstOrNull { !it.archived }
             ?: s.vehicles.firstOrNull()
-        if (chosen?.id != s.selectedVehicle?.id) {
+        if (chosen?.id == s.selectedVehicle?.id) {
+            if (chosen != s.selectedVehicle) _state.update { it.copy(selectedVehicle = chosen) }
+        } else {
+            recordsJob?.cancel(); recordsJob = null;
             _state.update { it.copy(selectedVehicle = chosen, records = emptyList()) }
             if (chosen != null) {
                 recordsJob?.cancel()
                 recordsJob = viewModelScope.launch {
                     container.garageRepository.observeRecords(s.user.uid, chosen.id).collect { records ->
-                        _state.update { it.copy(records = records) }
+                        _state.update { if (it.selectedVehicle?.id == chosen.id) it.copy(records = records) else it }
                         scheduleAllReminders(chosen, records)
                     }
                 }
@@ -106,16 +113,35 @@ class GarageViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun selectVehicle(id: String) {
+        if (_state.value.selectedVehicle?.id == id) return
+        _state.update { it.copy(preferences = it.preferences.copy(selectedVehicleId = id)) }
+        selectVehicleFromPrefs()
+        viewModelScope.launch { container.preferences.setSelectedVehicle(id) }
+    }
+
+    fun saveVehicleWithMedia(vehicle: Vehicle, main: Uri?, extras: List<Uri>, onDone: () -> Unit) {
+        val user = _state.value.user ?: run { showMessage("Inicia sesión para guardar"); return }
+        if (_state.value.savingVehicle) return
+        val active = _state.value.vehicles.count { !it.archived && it.status != VehicleStatus.VENDIDO }
+        if (vehicle.id.isBlank() && VehicleCalculators.activeVehicleLimitReached(active, _state.value.pro.isPro)) {
+            showMessage("FREE admite hasta 2 vehículos activos"); return
+        }
+        _state.update { it.copy(savingVehicle = true) }
         viewModelScope.launch {
-            container.preferences.setSelectedVehicle(id)
-            val selected = _state.value.vehicles.firstOrNull { it.id == id }
-            if (selected != null) {
-                _state.update { it.copy(selectedVehicle = selected, records = emptyList()) }
-                recordsJob?.cancel()
-                recordsJob = launch {
-                    val uid = _state.value.user?.uid ?: return@launch
-                    container.garageRepository.observeRecords(uid, id).collect { records -> _state.update { it.copy(records = records) }; scheduleAllReminders(selected, records) }
-                }
+            var prepared: com.noxforgestudios.mygarage.data.PreparedMedia? = null
+            var saved = false
+            try {
+                val identified = vehicle.copy(id = vehicle.id.ifBlank { UUID.randomUUID().toString() })
+                prepared = container.vehicleMedia.prepare(identified, user.uid, main, extras)
+                val id = container.garageRepository.saveVehicle(user.uid, prepared.vehicle).getOrThrow()
+                saved = true
+                container.preferences.setSelectedVehicle(id)
+                onDone()
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { showMessage("No se pudo guardar: "+(e.message ?: "vuelve a seleccionar los archivos"))
+            } finally {
+                if (!saved) prepared?.discard()
+                _state.update { it.copy(savingVehicle = false) }
             }
         }
     }
