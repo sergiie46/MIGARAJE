@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -21,7 +22,7 @@ import com.noxforgestudios.mygarage.ui.*
 import java.util.Date
 
 private val maintenanceTypes = listOf("Aceite", "Filtro aceite", "Filtro aire", "Filtro combustible", "Filtro habitáculo", "Distribución", "Cadena distribución", "Correa accesorios", "Líquido refrigerante", "Líquido frenos", "Aceite caja", "Aceite diferencial", "Embrague", "Frenos delanteros", "Frenos traseros", "Bujías", "Calentadores", "Batería", "Neumáticos", "Alineación", "Suspensión", "Revisión general", "Personalizado")
-private val modificationCategories = listOf("Motor", "Turbo", "Admisión", "Escape", "Electrónica", "Suspensión", "Frenos", "Transmisión", "Diferencial", "Ruedas", "Neumáticos", "Interior", "Exterior", "Iluminación", "Audio", "Otros")
+private val modificationCategories = VehicleCatalog.upgradeCategories
 private val expenseCategories = listOf("Combustible", "Mantenimiento", "Reparación", "Seguro", "Impuestos", "ITV", "Parking", "Peajes", "Multas", "Lavado", "Modificaciones", "Piezas", "Neumáticos", "Otros")
 
 @Composable
@@ -30,7 +31,21 @@ fun VehicleDetailScreen(state: GarageUiState, onBack: () -> Unit, onEditVehicle:
     Scaffold(topBar = { TopAppBar(title = { Text(vehicle?.title ?: "Vehículo") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } }, actions = { IconButton(onClick = onEditVehicle) { Icon(Icons.Default.Edit, "Editar") } }) }) { pad ->
         if (vehicle == null) return@Scaffold
         LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { VehicleSummaryCard(vehicle, state.preferences) }
+            item { VehicleHeroCard(vehicle) }
+            item { VehicleGallery(vehicle) }
+            item {
+                ElevatedCard(onClick = { onKind(RecordKind.MODIFICATION) }, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Mejoras y preparación", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        val upgrades = state.records.filter { it.kind == RecordKind.MODIFICATION || it.kind == RecordKind.PART }
+                        if (upgrades.isEmpty()) Text("Guarda lo que lleva tu coche: intercooler, turbo, suspensión, frenos…")
+                        upgrades.take(6).forEach { upgrade ->
+                            Text(listOf(upgrade.title, upgrade.dimensions, upgrade.status).filter(String::isNotBlank).joinToString(" · "))
+                        }
+                        Text("Ver y añadir mejoras →", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
             item {
                 Button(onClick = onGenerateCard, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
                     Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("Generar ficha visual del coche")
@@ -64,54 +79,55 @@ fun RecordEditorScreen(kind: RecordKind, existing: GarageRecord?, vehicle: Vehic
     if (vehicle == null) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Selecciona un vehículo") }; return }
     if (kind == RecordKind.ODOMETER) { OdometerEditor(vehicle, vm, onBack, onSaved); return }
 
-    var title by remember { mutableStateOf(existing?.title.orEmpty()) }
-    var date by remember { mutableStateOf(existing?.date?.let(EsDateFormat::format) ?: EsDateFormat.format(Date())) }
-    var km by remember(existing?.id, prefs.distanceUnit) { mutableStateOf(existing?.odometerKm?.let { UnitFormatters.editableDistance(it, prefs) } ?: UnitFormatters.editableDistance(vehicle.odometerKm, prefs)) }
-    var cost by remember { mutableStateOf(existing?.cost?.takeIf { it != 0.0 }?.toString().orEmpty()) }
-    var notes by remember { mutableStateOf(existing?.notes.orEmpty()) }
-    var category by remember { mutableStateOf(existing?.category.orEmpty()) }
-    var status by remember { mutableStateOf(existing?.status.orEmpty()) }
-    var workshop by remember { mutableStateOf(existing?.workshop.orEmpty()) }
-    var parts by remember { mutableStateOf(existing?.parts.orEmpty()) }
-    var laborCost by remember { mutableStateOf(existing?.laborCost?.takeIf { it != 0.0 }?.toString().orEmpty()) }
-    var partsCost by remember { mutableStateOf(existing?.partsCost?.takeIf { it != 0.0 }?.toString().orEmpty()) }
-    var nextDueKm by remember(existing?.id, prefs.distanceUnit) { mutableStateOf(existing?.nextDueKm?.let { UnitFormatters.editableDistance(it, prefs) }.orEmpty()) }
-    var nextDueDate by remember { mutableStateOf(existing?.nextDueDate?.let(EsDateFormat::format).orEmpty()) }
-    var fault by remember { mutableStateOf(existing?.fault.orEmpty()) }
-    var symptoms by remember { mutableStateOf(existing?.symptoms.orEmpty()) }
-    var diagnosis by remember { mutableStateOf(existing?.diagnosis.orEmpty()) }
-    var repairAction by remember { mutableStateOf(existing?.repairAction.orEmpty()) }
-    var liters by remember(existing?.id, prefs.volumeUnit) { mutableStateOf(existing?.liters?.let { UnitFormatters.editableVolume(it, prefs) }.orEmpty()) }
-    var priceLiter by remember(existing?.id, prefs.volumeUnit) { mutableStateOf(existing?.pricePerLiter?.let { UnitFormatters.editablePricePerVolume(it, prefs) }.orEmpty()) }
-    var fullTank by remember { mutableStateOf(existing?.fullTank ?: false) }
-    var station by remember { mutableStateOf(existing?.station.orEmpty()) }
-    var fuelType by remember { mutableStateOf(existing?.fuelType.orEmpty()) }
-    var brand by remember { mutableStateOf(existing?.brand.orEmpty()) }
-    var productModel by remember { mutableStateOf(existing?.productModel.orEmpty()) }
-    var reference by remember { mutableStateOf(existing?.reference.orEmpty()) }
-    var description by remember { mutableStateOf(existing?.description.orEmpty()) }
-    var tyreSize by remember { mutableStateOf(existing?.tyreSize.orEmpty()) }
-    var dot by remember { mutableStateOf(existing?.dot.orEmpty()) }
-    var pressure by remember { mutableStateOf(existing?.recommendedPressureBar?.toString().orEmpty()) }
-    var position by remember { mutableStateOf(existing?.position.orEmpty()) }
-    var result by remember { mutableStateOf(existing?.result.orEmpty()) }
-    var nextDate by remember { mutableStateOf(existing?.nextDate?.let(EsDateFormat::format).orEmpty()) }
-    var minor by remember { mutableStateOf(existing?.minorDefects.orEmpty()) }
-    var major by remember { mutableStateOf(existing?.majorDefects.orEmpty()) }
-    var provider by remember { mutableStateOf(existing?.provider.orEmpty()) }
-    var policy by remember { mutableStateOf(existing?.policy.orEmpty()) }
-    var coverage by remember { mutableStateOf(existing?.coverage.orEmpty()) }
-    var startDate by remember { mutableStateOf(existing?.startDate?.let(EsDateFormat::format).orEmpty()) }
-    var endDate by remember { mutableStateOf(existing?.endDate?.let(EsDateFormat::format).orEmpty()) }
-    var autoRenew by remember { mutableStateOf(existing?.autoRenew ?: false) }
-    var assistance by remember { mutableStateOf(existing?.roadsideAssistance ?: false) }
-    var taxYear by remember { mutableStateOf(existing?.taxYear?.toString().orEmpty()) }
-    var paid by remember { mutableStateOf(existing?.paid ?: false) }
-    var reminderByDate by remember { mutableStateOf(existing?.reminderByDate ?: (kind == RecordKind.REMINDER)) }
-    var reminderByKm by remember { mutableStateOf(existing?.reminderByKm ?: false) }
-    var leadKm by remember(existing?.id, prefs.distanceUnit) { mutableStateOf(existing?.reminderLeadKm?.let { UnitFormatters.editableDistance(it, prefs) }.orEmpty()) }
-    var leadDays by remember { mutableStateOf(existing?.reminderLeadDays?.joinToString(",") ?: "30,7,1") }
-    var confirmDelete by remember { mutableStateOf(false) }
+    var title by rememberSaveable { mutableStateOf(existing?.title.orEmpty()) }
+    var date by rememberSaveable { mutableStateOf(existing?.date?.let(EsDateFormat::format) ?: EsDateFormat.format(Date())) }
+    var km by rememberSaveable(existing?.id, prefs.distanceUnit) { mutableStateOf(existing?.odometerKm?.let { UnitFormatters.editableDistance(it, prefs) } ?: UnitFormatters.editableDistance(vehicle.odometerKm, prefs)) }
+    var cost by rememberSaveable { mutableStateOf(existing?.cost?.takeIf { it != 0.0 }?.toString().orEmpty()) }
+    var notes by rememberSaveable { mutableStateOf(existing?.notes.orEmpty()) }
+    var category by rememberSaveable { mutableStateOf(existing?.category.orEmpty()) }
+    var status by rememberSaveable { mutableStateOf(existing?.status ?: if (kind == RecordKind.MODIFICATION || kind == RecordKind.PART) "Instalada" else "") }
+    var workshop by rememberSaveable { mutableStateOf(existing?.workshop.orEmpty()) }
+    var parts by rememberSaveable { mutableStateOf(existing?.parts.orEmpty()) }
+    var laborCost by rememberSaveable { mutableStateOf(existing?.laborCost?.takeIf { it != 0.0 }?.toString().orEmpty()) }
+    var partsCost by rememberSaveable { mutableStateOf(existing?.partsCost?.takeIf { it != 0.0 }?.toString().orEmpty()) }
+    var nextDueKm by rememberSaveable(existing?.id, prefs.distanceUnit) { mutableStateOf(existing?.nextDueKm?.let { UnitFormatters.editableDistance(it, prefs) }.orEmpty()) }
+    var nextDueDate by rememberSaveable { mutableStateOf(existing?.nextDueDate?.let(EsDateFormat::format).orEmpty()) }
+    var fault by rememberSaveable { mutableStateOf(existing?.fault.orEmpty()) }
+    var symptoms by rememberSaveable { mutableStateOf(existing?.symptoms.orEmpty()) }
+    var diagnosis by rememberSaveable { mutableStateOf(existing?.diagnosis.orEmpty()) }
+    var repairAction by rememberSaveable { mutableStateOf(existing?.repairAction.orEmpty()) }
+    var liters by rememberSaveable(existing?.id, prefs.volumeUnit) { mutableStateOf(existing?.liters?.let { UnitFormatters.editableVolume(it, prefs) }.orEmpty()) }
+    var priceLiter by rememberSaveable(existing?.id, prefs.volumeUnit) { mutableStateOf(existing?.pricePerLiter?.let { UnitFormatters.editablePricePerVolume(it, prefs) }.orEmpty()) }
+    var fullTank by rememberSaveable { mutableStateOf(existing?.fullTank ?: false) }
+    var station by rememberSaveable { mutableStateOf(existing?.station.orEmpty()) }
+    var fuelType by rememberSaveable { mutableStateOf(existing?.fuelType.orEmpty()) }
+    var brand by rememberSaveable { mutableStateOf(existing?.brand.orEmpty()) }
+    var productModel by rememberSaveable { mutableStateOf(existing?.productModel.orEmpty()) }
+    var reference by rememberSaveable { mutableStateOf(existing?.reference.orEmpty()) }
+    var dimensions by rememberSaveable { mutableStateOf(existing?.dimensions.orEmpty()) }
+    var description by rememberSaveable { mutableStateOf(existing?.description.orEmpty()) }
+    var tyreSize by rememberSaveable { mutableStateOf(existing?.tyreSize.orEmpty()) }
+    var dot by rememberSaveable { mutableStateOf(existing?.dot.orEmpty()) }
+    var pressure by rememberSaveable { mutableStateOf(existing?.recommendedPressureBar?.toString().orEmpty()) }
+    var position by rememberSaveable { mutableStateOf(existing?.position.orEmpty()) }
+    var result by rememberSaveable { mutableStateOf(existing?.result.orEmpty()) }
+    var nextDate by rememberSaveable { mutableStateOf(existing?.nextDate?.let(EsDateFormat::format).orEmpty()) }
+    var minor by rememberSaveable { mutableStateOf(existing?.minorDefects.orEmpty()) }
+    var major by rememberSaveable { mutableStateOf(existing?.majorDefects.orEmpty()) }
+    var provider by rememberSaveable { mutableStateOf(existing?.provider.orEmpty()) }
+    var policy by rememberSaveable { mutableStateOf(existing?.policy.orEmpty()) }
+    var coverage by rememberSaveable { mutableStateOf(existing?.coverage.orEmpty()) }
+    var startDate by rememberSaveable { mutableStateOf(existing?.startDate?.let(EsDateFormat::format).orEmpty()) }
+    var endDate by rememberSaveable { mutableStateOf(existing?.endDate?.let(EsDateFormat::format).orEmpty()) }
+    var autoRenew by rememberSaveable { mutableStateOf(existing?.autoRenew ?: false) }
+    var assistance by rememberSaveable { mutableStateOf(existing?.roadsideAssistance ?: false) }
+    var taxYear by rememberSaveable { mutableStateOf(existing?.taxYear?.toString().orEmpty()) }
+    var paid by rememberSaveable { mutableStateOf(existing?.paid ?: false) }
+    var reminderByDate by rememberSaveable { mutableStateOf(existing?.reminderByDate ?: (kind == RecordKind.REMINDER)) }
+    var reminderByKm by rememberSaveable { mutableStateOf(existing?.reminderByKm ?: false) }
+    var leadKm by rememberSaveable(existing?.id, prefs.distanceUnit) { mutableStateOf(existing?.reminderLeadKm?.let { UnitFormatters.editableDistance(it, prefs) }.orEmpty()) }
+    var leadDays by rememberSaveable { mutableStateOf(existing?.reminderLeadDays?.joinToString(",") ?: "30,7,1") }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
     fun parseDate(raw: String): Date? = raw.takeIf(String::isNotBlank)?.let { runCatching { EsDateFormat.parse(it) }.getOrNull() }
     fun d(raw: String) = raw.replace(',', '.').toDoubleOrNull()
@@ -125,8 +141,8 @@ fun RecordEditorScreen(kind: RecordKind, existing: GarageRecord?, vehicle: Vehic
 
     Scaffold(topBar = { TopAppBar(title = { Text(if (existing == null) "Nuevo · ${kind.displayName}" else "Editar · ${kind.displayName}") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } }, actions = { if (existing != null) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Default.Delete, "Eliminar") } }) }) { pad ->
         LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { FieldR(title, { title = it }, "Título") }
-            item { FieldR(date, { date = it }, "Fecha (DD/MM/AAAA)") }
+            item { if (kind == RecordKind.MODIFICATION || kind == RecordKind.PART) SelectionField("Pieza o mejora *", title, VehicleCatalog.upgradeParts) { title = it } else FieldR(title, { title = it }, "Título") }
+            item { DateSelectionField("Fecha", date) { date = it } }
             item { DecimalR(km, { km = it }, "Kilometraje (${UnitFormatters.distanceLabel(prefs)})") }
 
             when (kind) {
@@ -159,14 +175,15 @@ fun RecordEditorScreen(kind: RecordKind, existing: GarageRecord?, vehicle: Vehic
                     item { DecimalR(cost, { cost = it }, "Coste total") }
                     item { Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(fullTank, { fullTank = it }); Text("Depósito lleno") } }
                     item { FieldR(station, { station = it }, "Gasolinera") }
-                    item { FieldR(fuelType, { fuelType = it }, "Tipo de combustible") }
+                    item { SelectionField("Combustible", fuelType, VehicleCatalog.fuels) { fuelType = it } }
                 }
                 RecordKind.EXPENSE -> { item { ChoiceField("Categoría", category, expenseCategories) { category = it } }; item { DecimalR(cost, { cost = it }, "Coste *") } }
-                RecordKind.MODIFICATION -> {
+                RecordKind.MODIFICATION, RecordKind.PART -> {
                     item { ChoiceField("Categoría", category, modificationCategories) { category = it } }
                     item { ChoiceField("Estado", status, listOf("Instalada", "Pendiente", "Retirada")) { status = it } }
                     item { FieldR(brand, { brand = it }, "Marca") }; item { FieldR(productModel, { productModel = it }, "Modelo") }; item { FieldR(reference, { reference = it }, "Referencia") }
-                    item { DecimalR(cost, { cost = it }, "Coste") }; item { FieldR(description, { description = it }, "Descripción", false) }
+                    item { FieldR(dimensions, { dimensions = it }, "Medidas (ej. 600 × 300 × 100 mm)") }
+                    item { DecimalR(cost, { cost = it }, "Coste") }; item { FieldR(description, { description = it }, "Especificaciones y montaje", false) }
                 }
                 RecordKind.TYRE -> {
                     item { FieldR(brand, { brand = it }, "Marca") }; item { FieldR(productModel, { productModel = it }, "Modelo") }; item { FieldR(tyreSize, { tyreSize = it }, "Medida") }; item { FieldR(dot, { dot = it }, "DOT") }
@@ -184,7 +201,6 @@ fun RecordEditorScreen(kind: RecordKind, existing: GarageRecord?, vehicle: Vehic
                 RecordKind.TAX -> {
                     item { FieldR(category, { category = it }, "Tipo") }; item { NumberR(taxYear, { taxYear = it }, "Año") }; item { DecimalR(cost, { cost = it }, "Coste") }; item { Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(paid, { paid = it }); Text("Pagado") } }; item { FieldR(nextDueDate, { nextDueDate = it }, "Próximo vencimiento") }
                 }
-                RecordKind.PART -> { item { FieldR(brand, { brand = it }, "Marca") }; item { FieldR(productModel, { productModel = it }, "Modelo") }; item { FieldR(reference, { reference = it }, "Referencia") }; item { DecimalR(cost, { cost = it }, "Coste") }; item { FieldR(description, { description = it }, "Descripción", false) } }
                 RecordKind.REMINDER -> {
                     item { ChoiceField("Categoría", category, listOf("Mantenimiento", "ITV", "Seguro", "Neumáticos", "Impuestos", "Personalizado")) { category = it } }
                     item { FieldR(nextDueDate, { nextDueDate = it }, "Fecha objetivo") }; item { DecimalR(nextDueKm, { nextDueKm = it }, "Kilometraje objetivo (${UnitFormatters.distanceLabel(prefs)})") }; item { ReminderFields(reminderByDate, { reminderByDate = it }, reminderByKm, { reminderByKm = it }, leadKm, { leadKm = it }, leadDays, { leadDays = it }, UnitFormatters.distanceLabel(prefs)) }
@@ -194,6 +210,7 @@ fun RecordEditorScreen(kind: RecordKind, existing: GarageRecord?, vehicle: Vehic
             item { FieldR(notes, { notes = it }, "Notas", false) }
             item {
                 Button(onClick = {
+                    if ((kind == RecordKind.MODIFICATION || kind == RecordKind.PART) && title.isBlank()) { vm.showMessage("Selecciona o escribe la pieza o mejora"); return@Button }
                     val parsedDate = parseDate(date) ?: run { vm.showMessage("Fecha inválida. Usa DD/MM/AAAA"); return@Button }
                     val displayedVolume = d(liters)
                     val displayedUnitPrice = d(priceLiter)
@@ -207,7 +224,7 @@ fun RecordEditorScreen(kind: RecordKind, existing: GarageRecord?, vehicle: Vehic
                         kind = kind, title = title.trim().ifBlank { defaultTitle() }, date = parsedDate, odometerKm = internalKm, cost = finalCost, notes = notes.trim(), category = category, status = status,
                         workshop = workshop, parts = parts, laborCost = d(laborCost) ?: 0.0, partsCost = d(partsCost) ?: 0.0, nextDueKm = internalNextKm, nextDueDate = parseDate(nextDueDate),
                         fault = fault, symptoms = symptoms, diagnosis = diagnosis, repairAction = repairAction, liters = l, pricePerLiter = pp, fullTank = fullTank, station = station, fuelType = fuelType,
-                        brand = brand, productModel = productModel, reference = reference, description = description, tyreSize = tyreSize, dot = dot, recommendedPressureBar = d(pressure), position = position,
+                        brand = brand, productModel = productModel, reference = reference, description = description, dimensions = dimensions.trim(), tyreSize = tyreSize, dot = dot, recommendedPressureBar = d(pressure), position = position,
                         installedDate = if (kind == RecordKind.TYRE) parsedDate else existing?.installedDate, installedKm = if (kind == RecordKind.TYRE) internalKm else existing?.installedKm,
                         result = result, nextDate = parseDate(nextDate), minorDefects = minor, majorDefects = major, provider = provider, policy = policy, coverage = coverage, startDate = parseDate(startDate), endDate = parseDate(endDate), autoRenew = autoRenew, roadsideAssistance = assistance,
                         taxYear = taxYear.toIntOrNull(), paid = paid, reminderByDate = reminderByDate || kind == RecordKind.INSPECTION || kind == RecordKind.INSURANCE, reminderByKm = reminderByKm, reminderLeadKm = internalLeadKm, reminderLeadDays = leadDays.split(',').mapNotNull { it.trim().toIntOrNull() }, reminderEnabled = true
@@ -230,13 +247,7 @@ fun RecordEditorScreen(kind: RecordKind, existing: GarageRecord?, vehicle: Vehic
     }
 }
 
-@Composable private fun ChoiceField(label: String, value: String, options: List<String>, onValue: (String) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded, { expanded = it }) {
-        OutlinedTextField(value, {}, readOnly = true, label = { Text(label) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor().fillMaxWidth())
-        ExposedDropdownMenu(expanded, { expanded = false }) { options.forEach { option -> DropdownMenuItem(text = { Text(option) }, onClick = { onValue(option); expanded = false }) } }
-    }
-}
+@Composable private fun ChoiceField(label: String, value: String, options: List<String>, onValue: (String) -> Unit) = SelectionField(label, value, options, onValue = onValue)
 @Composable private fun FieldR(value: String, onValue: (String) -> Unit, label: String, singleLine: Boolean = true) = OutlinedTextField(value, onValue, label = { Text(label) }, singleLine = singleLine, modifier = Modifier.fillMaxWidth())
 @Composable private fun NumberR(value: String, onValue: (String) -> Unit, label: String) = OutlinedTextField(value, { onValue(it.filter(Char::isDigit)) }, label = { Text(label) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
 @Composable private fun DecimalR(value: String, onValue: (String) -> Unit, label: String) = OutlinedTextField(value, { onValue(it.filter { c -> c.isDigit() || c == ',' || c == '.' }) }, label = { Text(label) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -246,7 +257,7 @@ private fun OdometerEditor(vehicle: Vehicle, vm: GarageViewModel, onBack: () -> 
     val uiState by vm.state.collectAsStateWithLifecycle()
     val prefs = uiState.preferences
     var km by remember(vehicle.id, prefs.distanceUnit) { mutableStateOf(UnitFormatters.editableDistance(vehicle.odometerKm, prefs)) }
-    var confirm by remember { mutableStateOf(false) }
+    var confirm by rememberSaveable { mutableStateOf(false) }
     Scaffold(topBar = { TopAppBar(title = { Text("Actualizar kilómetros") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } }) }) { pad ->
         Column(Modifier.padding(pad).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Actual: ${UnitFormatters.formatDistance(vehicle.odometerKm, prefs)}", style = MaterialTheme.typography.titleLarge)
