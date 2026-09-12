@@ -42,6 +42,8 @@ class AppContainer(context: Context) {
     val preferences = PreferencesRepository(appContext)
     val garageRepository: GarageRepository = FirebaseGarageRepository(firestore)
     val authRepository = AuthRepository(appContext, auth)
+    val vehicleMedia = VehicleMedia(appContext)
+    val vehicleCatalog = VehicleCatalogRepository(appContext)
     val photoRepository = PhotoRepository(appContext, storage)
     val billingManager = BillingManager(appContext)
     val consentManager = ConsentManager()
