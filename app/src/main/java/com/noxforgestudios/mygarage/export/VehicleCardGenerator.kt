@@ -115,13 +115,13 @@ object VehicleCardGenerator {
             if (options.includeMods) {
                 drawText(canvas, paint, "MODIFICACIONES", rightX, sectionTop, 28f, Color.WHITE, true)
                 canvas.drawRect(rightX, sectionTop + 12f, rightX + 360f, sectionTop + 18f, paint.apply { color = accent })
-                val mods = records.filter { it.kind == RecordKind.MODIFICATION }.sortedByDescending { it.date }.take(7)
+                val mods = records.filter { (it.kind == RecordKind.MODIFICATION || it.kind == RecordKind.PART) && it.status !in listOf("Pendiente", "Retirada") }.sortedByDescending { it.date }.take(7)
                 if (mods.isEmpty()) {
                     drawText(canvas, paint, "Sin modificaciones registradas", rightX, sectionTop + 70f, 21f, Color.LTGRAY, false, 430f)
                 } else {
                     mods.forEachIndexed { index, mod ->
                         val y = sectionTop + 60f + index * 43f
-                        val prefix = mod.category.takeIf { it.isNotBlank() }?.let { "$it · " }.orEmpty()
+                        val prefix = mod.dimensions.takeIf { it.isNotBlank() }?.let { "$it · " }.orEmpty()
                         drawText(canvas, paint, "• ${prefix}${mod.title.ifBlank { mod.description.ifBlank { "Modificación" } }}", rightX, y, 20f, Color.WHITE, false, 445f)
                     }
                 }
