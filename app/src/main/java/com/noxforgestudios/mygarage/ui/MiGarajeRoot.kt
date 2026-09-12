@@ -98,7 +98,7 @@ private fun MainNavigation(vm: GarageViewModel, container: AppContainer, activit
         }
     ) { padding ->
         NavHost(navController = nav, startDestination = "home", modifier = Modifier.padding(padding)) {
-            composable("home") { HomeScreen(state, onVehicle = { nav.navigate("vehicleDetail") }, onUpdateKm = { km, force -> vm.updateOdometer(km, force) }, onSearch = { nav.navigate("search") }, onQuick = { nav.navigate("quickAdd") }, onRecord = { r -> nav.navigate("record/${r.kind.name}/${r.id}") }) }
+            composable("home") { HomeScreen(state, onAddVehicle = { nav.navigate("vehicle/new") }, onSelectVehicle = vm::selectVehicle, onShareVehicle = { nav.navigate("vehicleCard") }, onVehicle = { nav.navigate("vehicleDetail") }, onUpdateKm = { km, force -> vm.updateOdometer(km, force) }, onSearch = { nav.navigate("search") }, onQuick = { nav.navigate("quickAdd") }, onRecord = { r -> nav.navigate("record/${r.kind.name}/${r.id}") }) }
             composable("garage") { GarageScreen(state, onAdd = { if (!state.pro.isPro && state.vehicles.count { !it.archived } >= 2) nav.navigate("pro") else nav.navigate("vehicle/new") }, onSelect = { v -> vm.selectVehicle(v.id); nav.navigate("vehicleDetail") }, onEdit = { nav.navigate("vehicle/${it.id}") }, onDuplicate = vm::duplicateVehicle, onArchive = { vm.saveVehicle(it) }, onDelete = vm::deleteVehicle) }
             composable("history") { HistoryScreen(state, onRecord = { r -> nav.navigate("record/${r.kind.name}/${r.id}") }, onAddKind = { k -> nav.navigate("record/${k.name}/new") }) }
             composable("stats") { StatsScreen(state) }
