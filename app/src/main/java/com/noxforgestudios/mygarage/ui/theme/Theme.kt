@@ -9,11 +9,14 @@ import com.noxforgestudios.mygarage.domain.ThemeMode
 private val DarkColors = darkColorScheme(
     primary = Color(0xFF4E9BFF),
     secondary = Color(0xFF66D8FF),
-    background = Color(0xFF07111F),
-    surface = Color(0xFF0E1B2C),
-    surfaceVariant = Color(0xFF17263A),
-    onBackground = Color(0xFFEAF2FF),
-    onSurface = Color(0xFFEAF2FF)
+    background = Color(0xFF080808),
+    surface = Color(0xFF141414),
+    surfaceVariant = Color(0xFF242424),
+    onBackground = Color(0xFFF5F5F5),
+    onSurface = Color(0xFFF5F5F5),
+    surfaceContainer = Color(0xFF181818),
+    surfaceContainerHigh = Color(0xFF222222),
+    surfaceContainerLow = Color(0xFF101010)
 )
 
 private val LightColors = lightColorScheme(
