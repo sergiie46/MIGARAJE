@@ -23,7 +23,7 @@ class PreferencesRepository(private val context: Context) {
 
     val preferences: Flow<AppPreferences> = context.dataStore.data.map { p ->
         AppPreferences(
-            themeMode = enumValueOrDefault(p[Keys.THEME], ThemeMode.SYSTEM),
+            themeMode = enumValueOrDefault(p[Keys.THEME], ThemeMode.DARK),
             distanceUnit = enumValueOrDefault(p[Keys.DISTANCE], DistanceUnit.KM),
             volumeUnit = enumValueOrDefault(p[Keys.VOLUME], VolumeUnit.LITERS),
             consumptionUnit = enumValueOrDefault(p[Keys.CONSUMPTION], ConsumptionUnit.L_PER_100_KM),
