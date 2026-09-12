@@ -1,0 +1,192 @@
+name: Build Mi Garaje Android
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      build_release:
+        description: "Compilar también APK/AAB Release firmado"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: "17"
+  ANDROID_API: "36"
+  BUILD_TOOLS: "36.0.0"
+  GRADLE_VERSION: "8.13"
+
+jobs:
+  debug:
+    name: Tests + APK Debug
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-${ANDROID_API}" "build-tools;${BUILD_TOOLS}"
+
+      - name: Install Gradle 8.13
+        shell: bash
+        run: |
+          wget -q "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /opt
+          echo "/opt/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
+
+      - name: Verify toolchain
+        run: |
+          java -version
+          gradle --version
+
+      - name: Unit tests
+        run: gradle testDebugUnitTest --stacktrace --no-daemon
+
+      - name: Lint debug
+        run: gradle lintDebug --stacktrace --no-daemon
+
+      - name: Build debug APK
+        run: gradle assembleDebug --stacktrace --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiGaraje-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: APK + AAB Release firmado
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_release == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      ADMOB_APP_ID: "ca-app-pub-4959997187423595~3743834650"
+      ADMOB_BANNER_ID: "ca-app-pub-4959997187423595/9627937913"
+      DEVELOPER_CONTACT: ${{ secrets.DEVELOPER_CONTACT }}
+      FIREBASE_STORAGE_ENABLED: ${{ secrets.FIREBASE_STORAGE_ENABLED }}
+      GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+      RELEASE_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+      RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+      RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+      RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required production secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(GOOGLE_SERVICES_JSON_B64 RELEASE_KEYSTORE_B64 RELEASE_STORE_PASSWORD RELEASE_KEY_ALIAS RELEASE_KEY_PASSWORD DEVELOPER_CONTACT)
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Falta el secret $name"
+              exit 1
+            fi
+          done
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-${ANDROID_API}" "build-tools;${BUILD_TOOLS}"
+
+      - name: Install Gradle 8.13
+        shell: bash
+        run: |
+          wget -q "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /opt
+          echo "/opt/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
+
+      - name: Restore Firebase config
+        shell: bash
+        run: echo "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > app/google-services.json
+
+      - name: Restore Play upload keystore
+        shell: bash
+        run: echo "$RELEASE_KEYSTORE_B64" | base64 --decode > upload-keystore.jks
+
+      - name: Create release signing config
+        shell: bash
+        run: |
+          cat > keystore.properties <<EOF
+          storeFile=upload-keystore.jks
+          storePassword=${RELEASE_STORE_PASSWORD}
+          keyAlias=${RELEASE_KEY_ALIAS}
+          keyPassword=${RELEASE_KEY_PASSWORD}
+          EOF
+
+      - name: Create production config
+        shell: bash
+        run: |
+          cat > local.properties <<EOF
+          ADMOB_APP_ID=${ADMOB_APP_ID}
+          ADMOB_BANNER_ID=${ADMOB_BANNER_ID}
+          DEVELOPER_CONTACT=${DEVELOPER_CONTACT}
+          FIREBASE_STORAGE_ENABLED=${FIREBASE_STORAGE_ENABLED:-false}
+          EOF
+
+      - name: Unit tests
+        run: gradle testReleaseUnitTest --stacktrace --no-daemon
+
+      - name: Lint release
+        run: gradle lintRelease --stacktrace --no-daemon
+
+      - name: Build signed release APK and AAB
+        run: gradle assembleRelease bundleRelease --stacktrace --no-daemon
+
+      - name: Verify outputs
+        shell: bash
+        run: |
+          test -f app/build/outputs/apk/release/app-release.apk
+          test -f app/build/outputs/bundle/release/app-release.aab
+          ls -lh app/build/outputs/apk/release/app-release.apk app/build/outputs/bundle/release/app-release.aab
+
+      - name: Upload Play Store AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiGaraje-PlayStore-AAB
+          path: app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload signed release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiGaraje-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
