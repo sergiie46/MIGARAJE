@@ -22,6 +22,9 @@ import java.util.Date
 fun HomeScreen(
     state: GarageUiState,
     onVehicle: () -> Unit,
+    onAddVehicle: () -> Unit,
+    onSelectVehicle: (String) -> Unit,
+    onShareVehicle: () -> Unit,
     onUpdateKm: (Long, Boolean) -> Unit,
     onSearch: () -> Unit,
     onQuick: () -> Unit,
@@ -52,9 +55,9 @@ fun HomeScreen(
             SyncStatusChip(state.syncState, state.online)
         }
         if (vehicle == null) {
-            item { EmptyState(Icons.Default.DirectionsCar, "No tienes vehículos todavía.", "Añadir mi primer vehículo", onVehicle) }
+            item { EmptyState(Icons.Default.DirectionsCar, "No tienes vehículos todavía.", "Añadir mi primer vehículo", onAddVehicle) }
         } else {
-            item { VehicleSummaryCard(vehicle, state.preferences, onVehicle) }
+            item { VehicleShowcase(state.vehicles, vehicle.id, onSelectVehicle, onVehicle, onShareVehicle) }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     FilledTonalButton(onClick = { showKm = true }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Speed, null); Spacer(Modifier.width(8.dp)); Text("Actualizar km") }
@@ -131,7 +134,7 @@ private fun greeting(): String {
 fun QuickAddScreen(onBack: () -> Unit, onKind: (RecordKind) -> Unit) {
     Scaffold(topBar = { TopAppBar(title = { Text("Añadir registro") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } }) }) { pad ->
         LazyColumn(Modifier.padding(pad), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(listOf(RecordKind.REFUEL, RecordKind.MAINTENANCE, RecordKind.REPAIR, RecordKind.EXPENSE, RecordKind.ODOMETER, RecordKind.REMINDER)) { kind ->
+            items(listOf(RecordKind.MODIFICATION, RecordKind.PART, RecordKind.REFUEL, RecordKind.MAINTENANCE, RecordKind.REPAIR, RecordKind.EXPENSE, RecordKind.ODOMETER, RecordKind.REMINDER)) { kind ->
                 ElevatedCard(onClick = { onKind(kind) }, modifier = Modifier.fillMaxWidth()) { Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) { Icon(recordIcon(kind), null); Spacer(Modifier.width(14.dp)); Text(kind.displayName, style = MaterialTheme.typography.titleMedium) } }
             }
         }
