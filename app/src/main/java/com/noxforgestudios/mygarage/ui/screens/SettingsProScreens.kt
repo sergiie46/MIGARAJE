@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.noxforgestudios.mygarage.ui.screens
 
 import android.app.Activity

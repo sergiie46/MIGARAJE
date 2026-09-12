@@ -92,7 +92,10 @@ class BillingManager(context: Context) : PurchasesUpdatedListener {
         val offer = details.oneTimePurchaseOfferDetails ?: details.oneTimePurchaseOfferDetailsList?.firstOrNull()
         val productParams = BillingFlowParams.ProductDetailsParams.newBuilder()
             .setProductDetails(details)
-            .apply { if (offer != null && offer.offerToken.isNotBlank()) setOfferToken(offer.offerToken) }
+            .apply {
+                val offerToken = offer?.offerToken
+                if (!offerToken.isNullOrBlank()) setOfferToken(offerToken)
+            }
             .build()
         val params = BillingFlowParams.newBuilder().setProductDetailsParamsList(listOf(productParams)).build()
         return billingClient.launchBillingFlow(activity, params).also { result ->

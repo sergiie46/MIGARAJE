@@ -197,7 +197,12 @@ object VehicleCardGenerator {
         val srcH = dst.height() / scale
         val left = (bitmap.width - srcW) / 2f
         val top = (bitmap.height - srcH) / 2f
-        canvas.drawBitmap(bitmap, RectF(left, top, left + srcW, top + srcH), dst, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+        canvas.drawBitmap(
+            bitmap,
+            Rect(left.toInt(), top.toInt(), (left + srcW).toInt(), (top + srcH).toInt()),
+            dst,
+            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        )
     }
 
     private fun drawText(canvas: Canvas, paint: Paint, text: String, x: Float, y: Float, size: Float, color: Int, bold: Boolean, maxWidth: Float = Float.MAX_VALUE) {

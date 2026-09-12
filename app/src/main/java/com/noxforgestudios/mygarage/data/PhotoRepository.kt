@@ -73,8 +73,9 @@ class PhotoRepository(
 
     suspend fun deleteUserPhotos(uid: String) {
         withContext(Dispatchers.IO) { File(context.filesDir, "vehicle_photos").deleteRecursively() }
-        if (!BuildConfig.FIREBASE_STORAGE_ENABLED || storage == null) return
-        runCatching { deleteRecursively(storage.reference.child("users/$uid")) }
+        if (!BuildConfig.FIREBASE_STORAGE_ENABLED) return
+        val firebaseStorage = storage ?: return
+        runCatching { deleteRecursively(firebaseStorage.reference.child("users/$uid")) }
     }
 
     private suspend fun deleteRecursively(ref: com.google.firebase.storage.StorageReference) {
