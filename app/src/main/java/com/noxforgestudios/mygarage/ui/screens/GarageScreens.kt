@@ -13,6 +13,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.layout.ContentScale
+import com.noxforgestudios.mygarage.domain.VehicleCatalog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -21,10 +24,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
-import com.canhub.cropper.CropImageContract
-import com.canhub.cropper.CropImageContractOptions
-import com.canhub.cropper.CropImageOptions
-import com.canhub.cropper.CropImageView.Guidelines
 import com.noxforgestudios.mygarage.AppContainer
 import com.noxforgestudios.mygarage.domain.Vehicle
 import com.noxforgestudios.mygarage.domain.VehicleStatus
@@ -75,39 +74,50 @@ fun GarageScreen(
 fun VehicleEditorScreen(vehicle: Vehicle?, vm: GarageViewModel, container: AppContainer, onBack: () -> Unit, onSaved: () -> Unit) {
     val uiState by vm.state.collectAsStateWithLifecycle()
     val prefs = uiState.preferences
-    val scope = rememberCoroutineScope()
-    var make by remember { mutableStateOf(vehicle?.make.orEmpty()) }
-    var model by remember { mutableStateOf(vehicle?.model.orEmpty()) }
-    var generation by remember { mutableStateOf(vehicle?.generation.orEmpty()) }
-    var version by remember { mutableStateOf(vehicle?.version.orEmpty()) }
-    var year by remember { mutableStateOf(vehicle?.year?.toString().orEmpty()) }
-    var plate by remember { mutableStateOf(vehicle?.plate.orEmpty()) }
-    var vin by remember { mutableStateOf(vehicle?.vin.orEmpty()) }
-    var odometer by remember(vehicle?.id, prefs.distanceUnit) { mutableStateOf(vehicle?.odometerKm?.let { UnitFormatters.editableDistance(it, prefs) } ?: "") }
-    var purchaseDate by remember { mutableStateOf(vehicle?.purchaseDate?.let(EsDateFormat::format).orEmpty()) }
-    var purchasePrice by remember { mutableStateOf(vehicle?.purchasePrice?.toString().orEmpty()) }
-    var fuel by remember { mutableStateOf(vehicle?.fuel.orEmpty()) }
-    var displacement by remember { mutableStateOf(vehicle?.displacementCc?.toString().orEmpty()) }
-    var powerCv by remember { mutableStateOf(vehicle?.powerCv?.toString().orEmpty()) }
-    var powerKw by remember { mutableStateOf(vehicle?.powerKw?.toString().orEmpty()) }
-    var transmission by remember { mutableStateOf(vehicle?.transmission.orEmpty()) }
-    var traction by remember { mutableStateOf(vehicle?.traction.orEmpty()) }
-    var color by remember { mutableStateOf(vehicle?.color.orEmpty()) }
-    var nickname by remember { mutableStateOf(vehicle?.nickname.orEmpty()) }
-    var notes by remember { mutableStateOf(vehicle?.notes.orEmpty()) }
-    var status by remember { mutableStateOf(vehicle?.status ?: VehicleStatus.ACTUAL) }
-    var croppedUri by remember { mutableStateOf<Uri?>(null) }
-    var galleryUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
-    var cameraUri by remember { mutableStateOf<Uri?>(null) }
-    var statusMenu by remember { mutableStateOf(false) }
+    var make by rememberSaveable { mutableStateOf(vehicle?.make.orEmpty()) }
+    var model by rememberSaveable { mutableStateOf(vehicle?.model.orEmpty()) }
+    var generation by rememberSaveable { mutableStateOf(vehicle?.generation.orEmpty()) }
+    var version by rememberSaveable { mutableStateOf(vehicle?.version.orEmpty()) }
+    var year by rememberSaveable { mutableStateOf(vehicle?.year?.toString().orEmpty()) }
+    var plate by rememberSaveable { mutableStateOf(vehicle?.plate.orEmpty()) }
+    var vin by rememberSaveable { mutableStateOf(vehicle?.vin.orEmpty()) }
+    var odometer by rememberSaveable(vehicle?.id, prefs.distanceUnit) { mutableStateOf(vehicle?.odometerKm?.let { UnitFormatters.editableDistance(it, prefs) } ?: "") }
+    var purchaseDate by rememberSaveable { mutableStateOf(vehicle?.purchaseDate?.let(EsDateFormat::format).orEmpty()) }
+    var purchasePrice by rememberSaveable { mutableStateOf(vehicle?.purchasePrice?.toString().orEmpty()) }
+    var fuel by rememberSaveable { mutableStateOf(vehicle?.fuel.orEmpty()) }
+    var displacement by rememberSaveable { mutableStateOf(vehicle?.displacementCc?.toString().orEmpty()) }
+    var powerCv by rememberSaveable { mutableStateOf(vehicle?.powerCv?.toString().orEmpty()) }
+    var powerKw by rememberSaveable { mutableStateOf(vehicle?.powerKw?.toString().orEmpty()) }
+    var transmission by rememberSaveable { mutableStateOf(vehicle?.transmission.orEmpty()) }
+    var traction by rememberSaveable { mutableStateOf(vehicle?.traction.orEmpty()) }
+    var color by rememberSaveable { mutableStateOf(vehicle?.color.orEmpty()) }
+    var nickname by rememberSaveable { mutableStateOf(vehicle?.nickname.orEmpty()) }
+    var notes by rememberSaveable { mutableStateOf(vehicle?.notes.orEmpty()) }
+    var status by rememberSaveable { mutableStateOf(vehicle?.status ?: VehicleStatus.ACTUAL) }
+    var croppedUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var galleryUris by rememberSaveable { mutableStateOf<List<Uri>>(emptyList()) }
+    var cameraUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var statusMenu by rememberSaveable { mutableStateOf(false) }
 
-    val crop = rememberLauncherForActivityResult(CropImageContract()) { result ->
-        if (result.isSuccessful) croppedUri = result.uriContent else result.error?.message?.let(vm::showMessage)
+    var makes by remember { mutableStateOf(VehicleCatalog.models.keys.toList()) }
+    var models by remember { mutableStateOf(VehicleCatalog.modelsFor(make)) }
+    var loadingModels by remember { mutableStateOf(false) }
+    var keptPhotos by rememberSaveable { mutableStateOf(vehicle?.galleryLocalPaths.orEmpty()) }
+    var keptVideos by rememberSaveable { mutableStateOf(vehicle?.videoLocalPaths.orEmpty()) }
+    LaunchedEffect(Unit) { makes = container.vehicleCatalog.makes() }
+    LaunchedEffect(make) {
+        models = VehicleCatalog.modelsFor(make)
+        if (make.isNotBlank()) {
+            loadingModels = true
+            try { models = container.vehicleCatalog.models(make) } finally { loadingModels = false }
+        }
     }
-    fun launchCrop(uri: Uri) = crop.launch(CropImageContractOptions(uri = uri, cropImageOptions = CropImageOptions(guidelines = Guidelines.ON, fixAspectRatio = true, aspectRatioX = 16, aspectRatioY = 9)))
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) launchCrop(uri) }
-    val galleryPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(6)) { uris -> galleryUris = uris.take(6) }
-    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok -> if (ok) cameraUri?.let(::launchCrop) }
+    fun safely(action: () -> Unit) { try { action() } catch (e: Exception) { vm.showMessage("No se pudo abrir el selector: "+e.message) } }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) croppedUri = uri }
+    val galleryPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(8)) { uris ->
+        galleryUris = (galleryUris + uris).distinct().take(8)
+    }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok -> if (ok) croppedUri = cameraUri }
 
     Scaffold(topBar = { TopAppBar(title = { Text(if (vehicle == null) "Nuevo vehículo" else "Editar vehículo") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } }) }) { pad ->
         LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -115,35 +125,56 @@ fun VehicleEditorScreen(vehicle: Vehicle?, vm: GarageViewModel, container: AppCo
                 ElevatedCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         val local = vehicle?.localPhotoPath?.takeIf { runCatching { File(it).exists() }.getOrDefault(false) }
-                        val photoModel: Any? = croppedUri ?: local ?: vehicle?.remotePhotoUrl
-                        if (photoModel != null) AsyncImage(model = photoModel, contentDescription = "Foto del vehículo", modifier = Modifier.fillMaxWidth().height(190.dp))
+                        val photoModel: Any? = croppedUri ?: local?.let(::File) ?: vehicle?.remotePhotoUrl
+                        if (photoModel != null) AsyncImage(model = photoModel, contentDescription = "Foto del vehículo", modifier = Modifier.fillMaxWidth().height(220.dp), contentScale = ContentScale.Crop)
                         else Box(Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) { Icon(Icons.Default.DirectionsCar, null, Modifier.size(72.dp)) }
-                        Row { TextButton(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Icon(Icons.Default.PhotoLibrary, null); Text("Foto principal") }; TextButton(onClick = { cameraUri = container.photoRepository.createCameraUri(); camera.launch(cameraUri!!) }) { Icon(Icons.Default.PhotoCamera, null); Text("Cámara") } }
-                        TextButton(onClick = { galleryPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Icon(Icons.Default.Collections, null); Text(if (galleryUris.isEmpty()) "Añadir galería (hasta 6)" else "${galleryUris.size} fotos extra seleccionadas") }
-                        if (vehicle?.galleryLocalPaths?.isNotEmpty() == true && galleryUris.isEmpty()) Text("${vehicle.galleryLocalPaths.size} fotos extra guardadas", style = MaterialTheme.typography.bodySmall)
+                        Row { TextButton(onClick = { safely { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) } }) { Icon(Icons.Default.PhotoLibrary, null); Text("Foto principal") }; TextButton(onClick = { safely { val uri = container.photoRepository.createCameraUri(); cameraUri = uri; camera.launch(uri) } }) { Icon(Icons.Default.PhotoCamera, null); Text("Cámara") } }
+                        TextButton(onClick = { safely { galleryPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) } }) {
+                            Icon(Icons.Default.Collections, null); Text("Añadir fotos o vídeos")
+                        }
+                        Text("Hasta 6 fotos y 2 vídeos · vídeos de 2 min / 100 MB", style = MaterialTheme.typography.bodySmall)
+                        Text("Los archivos se conservan en este dispositivo.", style = MaterialTheme.typography.bodySmall)
+                        if (galleryUris.isNotEmpty()) {
+                            Text("${galleryUris.size} archivos nuevos seleccionados")
+                            TextButton(onClick = { galleryUris = emptyList() }) { Text("Quitar archivos nuevos") }
+                        }
+                        keptPhotos.forEachIndexed { index, path ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                AsyncImage(File(path), "Foto ${index + 1}", Modifier.size(64.dp), contentScale = ContentScale.Crop)
+                                Text("Foto ${index + 1}", Modifier.weight(1f).padding(8.dp))
+                                IconButton(onClick = { keptPhotos = keptPhotos - path }) { Icon(Icons.Default.Close, "Quitar foto ${index + 1}") }
+                            }
+                        }
+                        keptVideos.forEachIndexed { index, path ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Movie, null)
+                                Text("Vídeo ${index + 1}", Modifier.weight(1f).padding(8.dp))
+                                IconButton(onClick = { keptVideos = keptVideos - path }) { Icon(Icons.Default.Close, "Quitar vídeo ${index + 1}") }
+                            }
+                        }
                     }
                 }
             }
             item { Text("Identificación", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-            item { Field(make, { make = it }, "Marca *") }
-            item { Field(model, { model = it }, "Modelo *") }
-            item { Field(generation, { generation = it }, "Generación") }
+            item { SelectionField("Marca *", make, makes) { if (make != it) { make = it; model = ""; generation = "" } } }
+            item { SelectionField("Modelo *", model, models, enabled = make.isNotBlank(), loading = loadingModels) { if (model != it) { model = it; generation = "" } } }
+            item { SelectionField("Generación", generation, VehicleCatalog.generationsFor(make, model)) { generation = it } }
             item { Field(version, { version = it }, "Versión") }
-            item { NumberField(year, { year = it }, "Año") }
+            item { SelectionField("Año", year, (java.time.Year.now().value + 1 downTo 1886).map(Int::toString), allowCustom = false) { year = it } }
             item { Field(plate, { plate = it.uppercase() }, "Matrícula") }
             item { Field(vin, { vin = it.uppercase() }, "VIN opcional") }
             item { DecimalField(odometer, { odometer = it }, "Kilometraje actual (${UnitFormatters.distanceLabel(prefs)}) *") }
             item { Field(nickname, { nickname = it }, "Apodo") }
             item { Text("Compra y técnica", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-            item { Field(purchaseDate, { purchaseDate = it }, "Fecha de compra (DD/MM/AAAA)") }
+            item { DateSelectionField("Fecha de compra", purchaseDate) { purchaseDate = it } }
             item { DecimalField(purchasePrice, { purchasePrice = it }, "Precio de compra") }
-            item { Field(fuel, { fuel = it }, "Combustible") }
+            item { SelectionField("Combustible", fuel, VehicleCatalog.fuels) { fuel = it } }
             item { NumberField(displacement, { displacement = it }, "Cilindrada (cc)") }
             item { NumberField(powerCv, { powerCv = it }, "Potencia (CV)") }
             item { NumberField(powerKw, { powerKw = it }, "Potencia (kW)") }
-            item { Field(transmission, { transmission = it }, "Transmisión") }
-            item { Field(traction, { traction = it }, "Tracción") }
-            item { Field(color, { color = it }, "Color") }
+            item { SelectionField("Transmisión", transmission, VehicleCatalog.transmissions) { transmission = it } }
+            item { SelectionField("Tracción", traction, VehicleCatalog.drivetrains) { traction = it } }
+            item { SelectionField("Color", color, listOf("Negro", "Blanco", "Gris", "Plata", "Azul", "Rojo", "Verde", "Amarillo", "Naranja", "Morado", "Beige", "Marrón", "Dorado", "Bicolor", "Vinilado")) { color = it } }
             item {
                 ExposedDropdownMenuBox(expanded = statusMenu, onExpandedChange = { statusMenu = it }) {
                     OutlinedTextField(value = status.name.lowercase().replaceFirstChar(Char::uppercase), onValueChange = {}, readOnly = true, label = { Text("Estado") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(statusMenu) }, modifier = Modifier.menuAnchor().fillMaxWidth())
@@ -160,26 +191,11 @@ fun VehicleEditorScreen(vehicle: Vehicle?, vm: GarageViewModel, container: AppCo
                         purchaseDate = purchaseDate.takeIf(String::isNotBlank)?.let { runCatching { EsDateFormat.parse(it) }.getOrNull() }, purchasePrice = purchasePrice.replace(',', '.').toDoubleOrNull(), fuel = fuel.trim(),
                         displacementCc = displacement.toIntOrNull(), powerCv = powerCv.toIntOrNull(), powerKw = powerKw.toIntOrNull(), transmission = transmission.trim(), traction = traction.trim(), color = color.trim(), nickname = nickname.trim(), notes = notes.trim(), status = status
                     )
-                    vm.saveVehicle(base) { id ->
-                        if (id == null) return@saveVehicle
-                        val mainUri = croppedUri
-                        val extraUris = galleryUris
-                        if (mainUri == null && extraUris.isEmpty()) onSaved() else scope.launch {
-                            var updated = base.copy(id = id)
-                            if (mainUri != null) {
-                                container.photoRepository.persistVehiclePhoto(mainUri, vm.state.value.user?.uid.orEmpty(), id)
-                                    .onSuccess { (local, remote) -> updated = updated.copy(localPhotoPath = local, remotePhotoUrl = remote) }
-                                    .onFailure { vm.showMessage("Vehículo guardado, pero la foto principal falló: ${it.message}") }
-                            }
-                            if (extraUris.isNotEmpty()) {
-                                container.photoRepository.persistVehiclePhotos(extraUris, vm.state.value.user?.uid.orEmpty(), id)
-                                    .onSuccess { (locals, remotes) -> updated = updated.copy(galleryLocalPaths = locals, galleryRemoteUrls = remotes) }
-                                    .onFailure { vm.showMessage("Vehículo guardado, pero la galería falló: ${it.message}") }
-                            }
-                            vm.saveVehicle(updated) { onSaved() }
-                        }
-                    }
-                }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Guardar vehículo") }
+                    vm.saveVehicleWithMedia(base.copy(galleryLocalPaths = keptPhotos, videoLocalPaths = keptVideos), croppedUri, galleryUris, onSaved)
+                }, enabled = !uiState.savingVehicle, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+                    if (uiState.savingVehicle) { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp); Spacer(Modifier.width(10.dp)) }
+                    Text(if (uiState.savingVehicle) "Guardando archivos y vehículo…" else "Guardar vehículo")
+                }
             }
         }
     }
