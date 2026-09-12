@@ -109,7 +109,7 @@ class FirebaseGarageRepository(
         val data = vehicleToMap(vehicle.copy(ownerUid = uid)).toMutableMap().apply {
             this["ownerUid"] = uid
             this["updatedAt"] = FieldValue.serverTimestamp()
-            if (vehicle.id.isBlank()) this["createdAt"] = FieldValue.serverTimestamp()
+            if (vehicle.createdAt == null) this["createdAt"] = FieldValue.serverTimestamp()
         }
         ref.set(data, SetOptions.merge()).await()
         ref.id
@@ -210,6 +210,7 @@ class FirebaseGarageRepository(
             displacementCc = d.getLong("displacementCc")?.toInt(), powerCv = d.getLong("powerCv")?.toInt(), powerKw = d.getLong("powerKw")?.toInt(),
             transmission = d.getString("transmission").orEmpty(), traction = d.getString("traction").orEmpty(), color = d.getString("color").orEmpty(),
             nickname = d.getString("nickname").orEmpty(), notes = d.getString("notes").orEmpty(), localPhotoPath = d.getString("localPhotoPath"), remotePhotoUrl = d.getString("remotePhotoUrl"), galleryLocalPaths = (d.get("galleryLocalPaths") as? List<*>)?.filterIsInstance<String>().orEmpty(), galleryRemoteUrls = (d.get("galleryRemoteUrls") as? List<*>)?.filterIsInstance<String>().orEmpty(),
+            videoLocalPaths = (d.get("videoLocalPaths") as? List<*>)?.filterIsInstance<String>().orEmpty(),
             status = runCatching { VehicleStatus.valueOf(d.getString("status") ?: "ACTUAL") }.getOrDefault(VehicleStatus.ACTUAL), archived = d.getBoolean("archived") ?: false,
             createdAt = d.date("createdAt"), updatedAt = d.date("updatedAt")
         )
@@ -220,7 +221,7 @@ class FirebaseGarageRepository(
         "year" to v.year, "plate" to v.plate, "vin" to v.vin, "odometerKm" to v.odometerKm, "purchaseDate" to v.purchaseDate,
         "purchasePrice" to v.purchasePrice, "fuel" to v.fuel, "displacementCc" to v.displacementCc, "powerCv" to v.powerCv, "powerKw" to v.powerKw,
         "transmission" to v.transmission, "traction" to v.traction, "color" to v.color, "nickname" to v.nickname, "notes" to v.notes,
-        "localPhotoPath" to v.localPhotoPath, "remotePhotoUrl" to v.remotePhotoUrl, "galleryLocalPaths" to v.galleryLocalPaths, "galleryRemoteUrls" to v.galleryRemoteUrls, "status" to v.status.name, "archived" to v.archived
+        "localPhotoPath" to v.localPhotoPath, "remotePhotoUrl" to v.remotePhotoUrl, "galleryLocalPaths" to v.galleryLocalPaths, "galleryRemoteUrls" to v.galleryRemoteUrls, "videoLocalPaths" to v.videoLocalPaths, "status" to v.status.name, "archived" to v.archived
     )
 
     private fun recordFromDoc(d: DocumentSnapshot, kind: RecordKind, vehicleId: String): GarageRecord = GarageRecord(
@@ -231,7 +232,7 @@ class FirebaseGarageRepository(
         nextDueKm = d.getLong("nextDueKm"), nextDueDate = d.date("nextDueDate"), fault = d.getString("fault").orEmpty(), symptoms = d.getString("symptoms").orEmpty(),
         diagnosis = d.getString("diagnosis").orEmpty(), repairAction = d.getString("repairAction").orEmpty(), liters = d.getDouble("liters"), pricePerLiter = d.getDouble("pricePerLiter"),
         fullTank = d.getBoolean("fullTank") ?: false, station = d.getString("station").orEmpty(), fuelType = d.getString("fuelType").orEmpty(), brand = d.getString("brand").orEmpty(),
-        productModel = d.getString("productModel").orEmpty(), reference = d.getString("reference").orEmpty(), description = d.getString("description").orEmpty(),
+        productModel = d.getString("productModel").orEmpty(), reference = d.getString("reference").orEmpty(), description = d.getString("description").orEmpty(), dimensions = d.getString("dimensions").orEmpty(),
         tyreSize = d.getString("tyreSize").orEmpty(), dot = d.getString("dot").orEmpty(), recommendedPressureBar = d.getDouble("recommendedPressureBar"), position = d.getString("position").orEmpty(),
         installedDate = d.date("installedDate"), installedKm = d.getLong("installedKm"), result = d.getString("result").orEmpty(), nextDate = d.date("nextDate"),
         minorDefects = d.getString("minorDefects").orEmpty(), majorDefects = d.getString("majorDefects").orEmpty(), provider = d.getString("provider").orEmpty(), policy = d.getString("policy").orEmpty(),
@@ -247,7 +248,7 @@ class FirebaseGarageRepository(
         "status" to r.status, "category" to r.category, "workshop" to r.workshop, "parts" to r.parts, "laborCost" to r.laborCost, "partsCost" to r.partsCost,
         "nextDueKm" to r.nextDueKm, "nextDueDate" to r.nextDueDate, "fault" to r.fault, "symptoms" to r.symptoms, "diagnosis" to r.diagnosis, "repairAction" to r.repairAction,
         "liters" to r.liters, "pricePerLiter" to r.pricePerLiter, "fullTank" to r.fullTank, "station" to r.station, "fuelType" to r.fuelType,
-        "brand" to r.brand, "productModel" to r.productModel, "reference" to r.reference, "description" to r.description,
+        "brand" to r.brand, "productModel" to r.productModel, "reference" to r.reference, "description" to r.description, "dimensions" to r.dimensions,
         "tyreSize" to r.tyreSize, "dot" to r.dot, "recommendedPressureBar" to r.recommendedPressureBar, "position" to r.position, "installedDate" to r.installedDate, "installedKm" to r.installedKm,
         "result" to r.result, "nextDate" to r.nextDate, "minorDefects" to r.minorDefects, "majorDefects" to r.majorDefects,
         "provider" to r.provider, "policy" to r.policy, "coverage" to r.coverage, "startDate" to r.startDate, "endDate" to r.endDate, "autoRenew" to r.autoRenew,
