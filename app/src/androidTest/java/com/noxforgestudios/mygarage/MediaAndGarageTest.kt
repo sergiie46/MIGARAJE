@@ -7,6 +7,9 @@ import android.net.Uri
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.exifinterface.media.ExifInterface
+import androidx.core.content.FileProvider
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.test.core.app.ApplicationProvider
 import com.noxforgestudios.mygarage.data.VehicleMedia
 import com.noxforgestudios.mygarage.domain.Vehicle
@@ -65,6 +68,31 @@ class MediaAndGarageTest {
         compose.runOnIdle { assertEquals("Mezcla de circuito personal", selected) }
     }
 
+    @Test fun videoIsCopiedPlayableAndAppendedWithoutReplacingPhotos() = runBlocking {
+        val source = File(context.cacheDir, "camera/test-${UUID.randomUUID()}.mp4")
+        source.parentFile!!.mkdirs()
+        InstrumentationRegistry.getInstrumentation().context.assets.open("sample.mp4").use { input -> source.outputStream().use { input.copyTo(it) } }
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", source)
+        val original = Vehicle(id = "test", galleryLocalPaths = listOf("old-photo.jpg"))
+        val result = VehicleMedia(context).prepare(original, "test-user", null, listOf(uri))
+        try {
+            assertEquals(original.galleryLocalPaths, result.vehicle.galleryLocalPaths)
+            assertEquals(1, result.vehicle.videoLocalPaths.size)
+            assertArrayEquals(source.readBytes(), File(result.vehicle.videoLocalPaths.single()).readBytes())
+        } finally { result.discard(); source.delete() }
+    }
+
+    @Test fun corruptVideoProducesAnErrorWithoutLeavingPartialFiles() = runBlocking {
+        val uid = "video-${UUID.randomUUID()}"
+        val source = File(context.cacheDir, "camera/$uid.mp4")
+        source.parentFile!!.mkdirs(); source.writeText("invalid video")
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", source)
+        try {
+            assertTrue(runCatching { VehicleMedia(context).prepare(Vehicle(id = "test"), uid, null, listOf(uri)) }.isFailure)
+            assertTrue(File(context.filesDir, "vehicle_photos/$uid").listFiles().orEmpty().isEmpty())
+        } finally { source.delete(); File(context.filesDir, "vehicle_photos/$uid").delete() }
+    }
+
     @Test fun changingCardSelectsTheVehicleWhoseDetailsWillOpen() {
         var selected = "a"
         compose.setContent {
@@ -77,5 +105,7 @@ class MediaAndGarageTest {
         compose.waitForIdle()
         compose.runOnIdle { assertEquals("b", selected) }
         compose.onNodeWithText("León").assertIsDisplayed()
+        val screenshot = compose.onRoot().captureToImage().asAndroidBitmap()
+        File(context.filesDir, "garage-preview.png").outputStream().use { screenshot.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 }
