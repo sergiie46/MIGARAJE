@@ -82,8 +82,13 @@ jobs:
           api-level: 35
           arch: x86_64
           target: google_apis
+          profile: pixel_2
           disable-animations: true
-          script: gradle connectedDebugAndroidTest --stacktrace --no-daemon
+          script: |
+            mkdir -p app/src/androidTest/assets
+            ffmpeg -y -f lavfi -i color=c=blue:s=320x240:d=1 -c:v libx264 -pix_fmt yuv420p app/src/androidTest/assets/sample.mp4
+            gradle connectedDebugAndroidTest --stacktrace --no-daemon
+            adb exec-out run-as com.noxforgestudios.mygarage cat files/garage-preview.png > app/build/reports/garage-preview.png
 
       - name: Upload test reports
         if: always()
