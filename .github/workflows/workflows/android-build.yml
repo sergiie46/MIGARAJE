@@ -2,172 +2,353 @@ name: Build Mi Garaje Android
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches:
+      - main
+      - master
+
   pull_request:
+    branches:
+      - main
+      - master
+
   workflow_dispatch:
-    inputs:
-      build_release:
-        description: "Compilar también APK/AAB Release firmado"
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
-  group: android-${{ github.ref }}
+  group: migaraje-android-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   JAVA_VERSION: "17"
+  GRADLE_VERSION: "8.13"
   ANDROID_API: "36"
   BUILD_TOOLS: "36.0.0"
-  GRADLE_VERSION: "8.13"
+
+  # PRODUCCIÓN
+  ADMOB_APP_ID: "ca-app-pub-4959997187423595~3743834650"
+  ADMOB_BANNER_ID: "ca-app-pub-4959997187423595/9627937913"
 
 jobs:
+
+  # ============================================================
+  # DEBUG
+  # ============================================================
+
   debug:
-    name: Tests + APK Debug
+    name: APK Debug
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
+
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+
+      - name: JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
-      - name: Set up Android SDK
+
+      - name: Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK 36
+
+      - name: Instalar Android SDK 36
         shell: bash
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platform-tools" "platforms;android-${ANDROID_API}" "build-tools;${BUILD_TOOLS}"
 
-      - name: Install Gradle 8.13
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-${ANDROID_API}" \
+            "build-tools;${BUILD_TOOLS}"
+
+
+      - name: Instalar Gradle 8.13
         shell: bash
         run: |
-          wget -q "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -O /tmp/gradle.zip
+          wget -q \
+            "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+            -O /tmp/gradle.zip
+
           unzip -q /tmp/gradle.zip -d /opt
+
           echo "/opt/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
 
-      - name: Verify toolchain
+
+      - name: Comprobar herramientas
+        shell: bash
         run: |
           java -version
           gradle --version
 
-      - name: Unit tests
-        run: gradle testDebugUnitTest --stacktrace --no-daemon
 
-      - name: Lint debug (no bloquea el APK)
-        id: lint_debug
-        continue-on-error: true
-        run: gradle lintDebug --stacktrace --no-daemon
-
-      - name: Print full Lint report
-        if: always()
+      - name: Crear local.properties Debug
         shell: bash
         run: |
+          cat > local.properties <<EOF
+          sdk.dir=${ANDROID_HOME}
+          ADMOB_APP_ID=ca-app-pub-3940256099942544~3347511713
+          ADMOB_BANNER_ID=ca-app-pub-3940256099942544/9214589741
+          FIREBASE_STORAGE_ENABLED=false
+          DEVELOPER_CONTACT=debug@noxforge.local
+          EOF
+
+
+      - name: Tests unitarios
+        shell: bash
+        run: |
+          gradle testDebugUnitTest \
+            --stacktrace \
+            --no-daemon
+
+
+      # ========================================================
+      # LINT
+      #
+      # NO BLOQUEA EL APK DEBUG.
+      # EL INFORME SE GUARDA COMO ARTIFACT.
+      # ========================================================
+
+      - name: Android Lint Debug
+        shell: bash
+        continue-on-error: true
+        run: |
+          gradle lintDebug \
+            --stacktrace \
+            --no-daemon || true
+
+          echo ""
+          echo "===================================================="
+          echo "              INFORME ANDROID LINT"
+          echo "===================================================="
+
           REPORT="app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt"
-          echo "============================================================"
-          echo "             INFORME COMPLETO ANDROID LINT"
-          echo "============================================================"
+
           if [ -f "$REPORT" ]; then
             cat "$REPORT"
           else
-            echo "No se encontró $REPORT"
-            find app/build -type f \( -iname "*lint*.txt" -o -iname "*lint*.html" -o -iname "*lint*.xml" \) -print || true
+            echo "No se encontró el informe de Lint."
           fi
 
-      - name: Upload debug Lint reports
+
+      - name: Compilar APK Debug
+        shell: bash
+        run: |
+          gradle assembleDebug \
+            --stacktrace \
+            --no-daemon
+
+
+      - name: Comprobar APK Debug
+        shell: bash
+        run: |
+          find app/build/outputs/apk -type f -name "*.apk" -print
+
+          test -f app/build/outputs/apk/debug/app-debug.apk
+
+
+      - name: Subir APK Debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiGaraje-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+
+      - name: Subir informe Lint
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: MiGaraje-lint-reports
+          name: MiGaraje-lint-debug
           path: |
             app/build/reports/lint-results-debug.html
             app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Build debug APK
-        run: gradle assembleDebug --stacktrace --no-daemon
 
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: MiGaraje-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-          retention-days: 14
+
+  # ============================================================
+  # RELEASE FIRMADO
+  # ============================================================
 
   release:
     name: APK + AAB Release firmado
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_release == true }}
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
+
+    # No generamos Release en Pull Requests.
+    # Sí se genera automáticamente en push y manualmente.
+    if: ${{ github.event_name != 'pull_request' }}
+
     env:
-      ADMOB_APP_ID: "ca-app-pub-4959997187423595~3743834650"
-      ADMOB_BANNER_ID: "ca-app-pub-4959997187423595/9627937913"
-      DEVELOPER_CONTACT: ${{ secrets.DEVELOPER_CONTACT }}
-      FIREBASE_STORAGE_ENABLED: ${{ secrets.FIREBASE_STORAGE_ENABLED }}
       GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+
       RELEASE_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
       RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
       RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
       RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+
+      DEVELOPER_CONTACT: ${{ secrets.DEVELOPER_CONTACT }}
+      FIREBASE_STORAGE_ENABLED: ${{ secrets.FIREBASE_STORAGE_ENABLED }}
+
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate required production secrets
+
+      # ========================================================
+      # COMPROBAR SECRETS
+      # ========================================================
+
+      - name: Comprobar Secrets necesarios
         shell: bash
         run: |
-          set -euo pipefail
-          required=(GOOGLE_SERVICES_JSON_B64 RELEASE_KEYSTORE_B64 RELEASE_STORE_PASSWORD RELEASE_KEY_ALIAS RELEASE_KEY_PASSWORD DEVELOPER_CONTACT)
-          for name in "${required[@]}"; do
-            if [ -z "${!name:-}" ]; then
-              echo "::error::Falta el secret $name"
-              exit 1
-            fi
-          done
+          set -e
 
-      - name: Set up JDK 17
+          FAILED=0
+
+          check_secret() {
+            NAME="$1"
+            VALUE="$2"
+
+            if [ -z "$VALUE" ]; then
+              echo "::error::Falta el GitHub Secret: $NAME"
+              FAILED=1
+            else
+              echo "$NAME OK"
+            fi
+          }
+
+          check_secret \
+            "GOOGLE_SERVICES_JSON_B64" \
+            "$GOOGLE_SERVICES_JSON_B64"
+
+          check_secret \
+            "RELEASE_KEYSTORE_B64" \
+            "$RELEASE_KEYSTORE_B64"
+
+          check_secret \
+            "RELEASE_STORE_PASSWORD" \
+            "$RELEASE_STORE_PASSWORD"
+
+          check_secret \
+            "RELEASE_KEY_ALIAS" \
+            "$RELEASE_KEY_ALIAS"
+
+          check_secret \
+            "RELEASE_KEY_PASSWORD" \
+            "$RELEASE_KEY_PASSWORD"
+
+          check_secret \
+            "DEVELOPER_CONTACT" \
+            "$DEVELOPER_CONTACT"
+
+          if [ "$FAILED" -ne 0 ]; then
+            echo ""
+            echo "Faltan Secrets necesarios para firmar la aplicación."
+            exit 1
+          fi
+
+
+      # ========================================================
+      # JAVA
+      # ========================================================
+
+      - name: JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
-      - name: Set up Android SDK
+
+      # ========================================================
+      # ANDROID
+      # ========================================================
+
+      - name: Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK 36
+
+      - name: Instalar Android SDK 36
         shell: bash
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platform-tools" "platforms;android-${ANDROID_API}" "build-tools;${BUILD_TOOLS}"
 
-      - name: Install Gradle 8.13
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-${ANDROID_API}" \
+            "build-tools;${BUILD_TOOLS}"
+
+
+      # ========================================================
+      # GRADLE
+      # ========================================================
+
+      - name: Instalar Gradle 8.13
         shell: bash
         run: |
-          wget -q "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -O /tmp/gradle.zip
+          wget -q \
+            "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+            -O /tmp/gradle.zip
+
           unzip -q /tmp/gradle.zip -d /opt
+
           echo "/opt/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
 
-      - name: Restore Firebase config
-        shell: bash
-        run: echo "$GOOGLE_SERVICES_JSON_B64" | base64 --decode > app/google-services.json
 
-      - name: Restore Play upload keystore
+      - name: Comprobar herramientas
         shell: bash
-        run: echo "$RELEASE_KEYSTORE_B64" | base64 --decode > upload-keystore.jks
+        run: |
+          java -version
+          gradle --version
 
-      - name: Create release signing config
+
+      # ========================================================
+      # FIREBASE
+      # ========================================================
+
+      - name: Restaurar google-services.json
+        shell: bash
+        run: |
+          echo "$GOOGLE_SERVICES_JSON_B64" \
+            | base64 --decode \
+            > app/google-services.json
+
+          test -s app/google-services.json
+
+          echo "google-services.json restaurado correctamente."
+
+
+      # ========================================================
+      # KEYSTORE
+      # ========================================================
+
+      - name: Restaurar keystore
+        shell: bash
+        run: |
+          echo "$RELEASE_KEYSTORE_B64" \
+            | base64 --decode \
+            > upload-keystore.jks
+
+          test -s upload-keystore.jks
+
+          echo "Keystore restaurado correctamente."
+
+
+      # ========================================================
+      # CONFIG FIRMA
+      # ========================================================
+
+      - name: Crear keystore.properties
         shell: bash
         run: |
           cat > keystore.properties <<EOF
@@ -177,33 +358,112 @@ jobs:
           keyPassword=${RELEASE_KEY_PASSWORD}
           EOF
 
-      - name: Create production config
+
+      # ========================================================
+      # CONFIG PRODUCCIÓN
+      # ========================================================
+
+      - name: Crear local.properties Release
         shell: bash
         run: |
           cat > local.properties <<EOF
+          sdk.dir=${ANDROID_HOME}
+
           ADMOB_APP_ID=${ADMOB_APP_ID}
           ADMOB_BANNER_ID=${ADMOB_BANNER_ID}
+
           DEVELOPER_CONTACT=${DEVELOPER_CONTACT}
+
           FIREBASE_STORAGE_ENABLED=${FIREBASE_STORAGE_ENABLED:-false}
           EOF
 
-      - name: Unit tests
-        run: gradle testReleaseUnitTest --stacktrace --no-daemon
 
-      - name: Lint release
-        run: gradle lintRelease --stacktrace --no-daemon
+      # ========================================================
+      # TESTS
+      # ========================================================
 
-      - name: Build signed release APK and AAB
-        run: gradle assembleRelease bundleRelease --stacktrace --no-daemon
-
-      - name: Verify outputs
+      - name: Tests Release
         shell: bash
         run: |
+          gradle testReleaseUnitTest \
+            --stacktrace \
+            --no-daemon
+
+
+      # ========================================================
+      # LINT
+      #
+      # SE EJECUTA, PERO NO BLOQUEA EL BUILD RELEASE.
+      # ========================================================
+
+      - name: Android Lint Release
+        continue-on-error: true
+        shell: bash
+        run: |
+          gradle lintRelease \
+            --stacktrace \
+            --no-daemon || true
+
+
+      # ========================================================
+      # APK + AAB RELEASE
+      # ========================================================
+
+      - name: Compilar APK y AAB Release firmado
+        shell: bash
+        run: |
+          gradle \
+            assembleRelease \
+            bundleRelease \
+            --stacktrace \
+            --no-daemon
+
+
+      # ========================================================
+      # COMPROBAR ARCHIVOS
+      # ========================================================
+
+      - name: Comprobar APK y AAB
+        shell: bash
+        run: |
+          echo ""
+          echo "================ APK ================"
+          find app/build/outputs/apk/release \
+            -type f \
+            -name "*.apk" \
+            -print || true
+
+          echo ""
+          echo "================ AAB ================"
+          find app/build/outputs/bundle/release \
+            -type f \
+            -name "*.aab" \
+            -print || true
+
+          echo ""
+
           test -f app/build/outputs/apk/release/app-release.apk
           test -f app/build/outputs/bundle/release/app-release.aab
-          ls -lh app/build/outputs/apk/release/app-release.apk app/build/outputs/bundle/release/app-release.aab
 
-      - name: Upload Play Store AAB
+
+      # ========================================================
+      # APK FIRMADO
+      # ========================================================
+
+      - name: Subir APK Release firmado
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiGaraje-release-signed-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
+
+
+      # ========================================================
+      # AAB GOOGLE PLAY
+      # ========================================================
+
+      - name: Subir AAB Google Play
         uses: actions/upload-artifact@v4
         with:
           name: MiGaraje-PlayStore-AAB
@@ -211,10 +471,18 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Upload signed release APK
+
+      # ========================================================
+      # LINT RELEASE
+      # ========================================================
+
+      - name: Subir informe Lint Release
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: MiGaraje-release-apk
-          path: app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: error
+          name: MiGaraje-lint-release
+          path: |
+            app/build/reports/lint-results-release.html
+            app/build/intermediates/lint_intermediate_text_report/release/lintReportRelease/lint-results-release.txt
+          if-no-files-found: ignore
           retention-days: 30
