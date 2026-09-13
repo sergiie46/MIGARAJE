@@ -76,6 +76,11 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Install video test tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+
       - name: Test media and garage on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
